@@ -7,7 +7,7 @@
 // Version: 9.3
 
 // This software along with its related components, documentation and files ("The Libraries")
-// is © 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
+// is ï¿½ 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
 // governed by a software license agreement ("Agreement").  Copies of the Agreement are
 // available at The Code Project (www.codeproject.com), as part of the package you downloaded
 // to obtain this file, or directly from our office.  For a copy of the license governing
@@ -2044,6 +2044,7 @@ void COXSizeDockBar::DockControlBar(CControlBar* pBar, LPCRECT lpRect)
 		}
 
 		nPos = Insert(pBar, rect, ptInsertion);
+		int iBandCoord = GetInsertBandCoord(nPos);
 
 		// position at requested position
 		CRect rectPrev;
@@ -2057,19 +2058,16 @@ void COXSizeDockBar::DockControlBar(CControlBar* pBar, LPCRECT lpRect)
 		if (m_dwStyle & CBRS_ORIENT_HORZ)
 		{
 			// Horizontal
-			rectNew.SetRect(rect.left, rectPrev.top, rect.Width(), rectPrev.Height());
-			COXSizeControlBar* pOXBar = DYNAMIC_DOWNCAST(COXSizeControlBar, pBar);
-			if (pOXBar != NULL && bNewDockBar && !bInsertedToTab)
-				rectNew.bottom = pOXBar->m_FloatSize.cx;
+			int iInsertX = rect.left + rect.Width() / 2;
+			rectNew.SetRect(rect.left, iBandCoord, rect.Width(), rect.Height());
 
 			// Adjust the x cordinates so there would be no snapping
-
-			if (pOXBar != NULL)
-				rectNew.left = GetXCoord(pBar, rectNew.top, rect.left);
+			if (DYNAMIC_DOWNCAST(COXSizeControlBar, pBar) != NULL)
+				rectNew.left = GetXCoord(pBar, rectNew.top, iInsertX);
 			else // we have a COXCoolToolbar
 			{
 				// Make sure we are not going outside the boundaries
-				int iXMinimun = GetXCoord(pBar, rectNew.top, rect.left);
+				int iXMinimun = GetXCoord(pBar, rectNew.top, iInsertX);
 				int iXMaximum = rectThis.right;
 
 				// Make sure we don't exceed the minimum
@@ -2088,19 +2086,16 @@ void COXSizeDockBar::DockControlBar(CControlBar* pBar, LPCRECT lpRect)
 		else
 		{
 			// Vertical
-			rectNew.SetRect(rectPrev.left, rect.top, rectPrev.Width(), rect.Height());
-			COXSizeControlBar* pOXBar = DYNAMIC_DOWNCAST(COXSizeControlBar, pBar);
-			if (pOXBar != NULL && bNewDockBar && !bInsertedToTab)
-				rectNew.right = pOXBar->m_FloatSize.cx;
+			int iInsertY = rect.top + rect.Height() / 2;
+			rectNew.SetRect(iBandCoord, rect.top, rect.Width(), rect.Height());
 
 			// Adjust the x cordinates so there would be no snapping
-
-			if (pOXBar != NULL)
-				rectNew.top = GetYCoord(pBar, rectNew.left, rect.top);
+			if (DYNAMIC_DOWNCAST(COXSizeControlBar, pBar) != NULL)
+				rectNew.top = GetYCoord(pBar, rectNew.left, iInsertY);
 			else // we have a COXCoolToolbar
 			{
 				// Make sure we are not going outside the boundaries
-				int iYMinimun = GetYCoord(pBar, rectNew.left, rect.top);
+				int iYMinimun = GetYCoord(pBar, rectNew.left, iInsertY);
 				int iYMaximum = rectThis.bottom - GetTabHeight();
 
 				// Make sure we don't exceed the minimum
@@ -2155,6 +2150,515 @@ void COXSizeDockBar::DockControlBar(CControlBar* pBar, LPCRECT lpRect)
 	pFrameWnd->DelayRecalcLayout();
 }
 
+BOOL COXSizeDockBar::GetDockPreviewRect(CControlBar* pBar, LPCRECT lpRect,
+	CRect& rectPreview)
+{
+	ASSERT_VALID(this);
+	ASSERT_VALID(pBar);
+	ASSERT_KINDOF(CControlBar, pBar);
+
+	rectPreview.SetRectEmpty();
+	if (lpRect == NULL)
+		return FALSE;
+
+	bool bInsertedToTab = false;
+
+	if (DYNAMIC_DOWNCAST(COXSizeControlBar, pBar) != NULL)
+	{
+		int iOldIndex = m_wndDockTabCtrl.FindTab(pBar);
+		CPoint ptMouse(lpRect->left, lpRect->top);
+		int iNewTabIndex = m_wndDockTabCtrl.HitTestTabControl(ptMouse, pBar);
+		if (iNewTabIndex != -1)
+		{
+			if (iOldIndex != -1 && iOldIndex != iNewTabIndex)
+			{
+				bInsertedToTab = true;
+			}
+			else if (iOldIndex == -1)
+			{
+				if (GetTabHeight() > 0 || GetVisibleSizeControlBarCount(pBar) > 1)
+					bInsertedToTab = true;
+			}
+		}
+	}
+
+	CRect rectThis;
+	GetWindowRect(rectThis);
+	ScreenToClient(&rectThis);
+	CRect rectScreen(lpRect);
+	int nBarsOnRow = BarsOnThisRow(pBar, rectScreen);
+	int nDockAreaWidth = rectThis.Width();
+	int nDockAreaHeight = rectThis.Height() - GetTabHeight();
+
+	CRect rect(lpRect);
+	ScreenToClient(&rect);
+	CPoint ptInsertion = GetInsertionPoint(pBar, rect);
+
+	if (ptInsertion.x >= rectThis.left - 11 && ptInsertion.x <= rectThis.left - 3)
+	{
+		int iOffset = rectThis.left - 3 - ptInsertion.x + 1;
+		ptInsertion.x += iOffset;
+	}
+
+	if (ptInsertion.y >= rectThis.top - 11 && ptInsertion.y <= rectThis.top - 3)
+	{
+		int iOffset = rectThis.top - 3 - ptInsertion.y + 1;
+		ptInsertion.y += iOffset;
+	}
+
+	int nInsertPos = TestInsertPosition(pBar, CRect(lpRect));
+	int iBandCoord = GetInsertBandCoord(nInsertPos);
+
+	CRect rectPrev;
+	pBar->GetWindowRect(&rectPrev);
+	ScreenToClient(&rectPrev);
+
+	CRect rectNew(lpRect);
+	ScreenToClient(&rectNew);
+
+	if (m_dwStyle & CBRS_ORIENT_HORZ)
+	{
+		int iInsertX = rect.left + rect.Width() / 2;
+		COXSizeControlBar* pOXBar = DYNAMIC_DOWNCAST(COXSizeControlBar, pBar);
+		int nDockWidth = rect.Width();
+		int nDockHeight = rect.Height();
+		BOOL bUseAdjustedRowPreview = FALSE;
+		if (pOXBar != NULL)
+		{
+			nDockHeight = pOXBar->m_HorzDockSize.cy;
+			if (nBarsOnRow != 0)
+				nDockWidth = __max(1, nDockAreaWidth / (nBarsOnRow + 1));
+			else if (pOXBar->m_HorzDockSize.cx >= nDockAreaWidth - 16)
+				nDockWidth = __max(1, nDockAreaWidth / 3);
+			else
+				nDockWidth = pOXBar->m_HorzDockSize.cx;
+
+			bUseAdjustedRowPreview = (nBarsOnRow != 0);
+		}
+
+		rectNew.SetRect(rect.left, iBandCoord, nDockWidth, nDockHeight);
+
+		if (bUseAdjustedRowPreview)
+		{
+			int nRowStart = StartPosOfRow(nInsertPos);
+			int nPreviewInsertPos = nInsertPos;
+			for (int nScanPos = nRowStart;
+				nScanPos < m_arrBars.GetSize() && m_arrBars[nScanPos] != NULL;
+				nScanPos++)
+			{
+				CControlBar* pCurrentBar = GetDockedControlBar(nScanPos);
+				if (pCurrentBar == NULL || !::IsWindow(pCurrentBar->GetSafeHwnd()) ||
+					!pCurrentBar->IsVisible() || pCurrentBar == pBar)
+				{
+					continue;
+				}
+
+				CRect rectBar;
+				pCurrentBar->GetWindowRect(rectBar);
+				ScreenToClient(&rectBar);
+				if (iInsertX < rectBar.left + rectBar.Width() / 2)
+				{
+					nPreviewInsertPos = nScanPos;
+					break;
+				}
+
+				nPreviewInsertPos = nScanPos + 1;
+			}
+			CPtrArray arrOtherBarsInRow;
+			CPtrArray arrSavedBars;
+			CArray<CSize, CSize&> arrSavedHorzSizes;
+			CArray<CSize, CSize&> arrSavedVertSizes;
+
+			int nPos = nRowStart;
+			while (nPos < m_arrBars.GetSize() && m_arrBars[nPos] != NULL)
+			{
+				CControlBar* pCurrentBar = GetDockedControlBar(nPos);
+				if (pCurrentBar != NULL && ::IsWindow(pCurrentBar->GetSafeHwnd()) &&
+					pCurrentBar->IsVisible() && pCurrentBar != pBar)
+				{
+					arrOtherBarsInRow.Add(pCurrentBar);
+					COXSizeControlBar* pCurrentSizeBar =
+						DYNAMIC_DOWNCAST(COXSizeControlBar, pCurrentBar);
+					if (pCurrentSizeBar != NULL)
+					{
+						arrSavedBars.Add(pCurrentSizeBar);
+						arrSavedHorzSizes.Add(pCurrentSizeBar->m_HorzDockSize);
+						arrSavedVertSizes.Add(pCurrentSizeBar->m_VertDockSize);
+					}
+				}
+				nPos++;
+			}
+
+			arrSavedBars.Add(pOXBar);
+			arrSavedHorzSizes.Add(pOXBar->m_HorzDockSize);
+			arrSavedVertSizes.Add(pOXBar->m_VertDockSize);
+
+			arrOtherBarsInRow.Add(NULL);
+			ROWSIZEINFO rzi;
+			GetRowSizeInfo(0, &rzi, arrOtherBarsInRow);
+
+			BOOL bWasLayoutQuery = m_bLayoutQuery;
+			m_bLayoutQuery = TRUE;
+			pOXBar->m_HorzDockSize.cx = nDockWidth;
+			pOXBar->m_HorzDockSize.cy = nDockHeight;
+
+			int nWidthNeeded = nDockWidth;
+			if (!pBar->IsKindOf(RUNTIME_CLASS(COXSizeToolBar)) && rzi.nFlexBars > 0)
+				nWidthNeeded += CX_SPLIT;
+
+			AdjustRowSizes(0, __max(0, rzi.nTotalWidth - nWidthNeeded), arrOtherBarsInRow);
+
+			int iRowLeft = rectThis.left - 2;
+			for (nPos = nRowStart; nPos < m_arrBars.GetSize() && m_arrBars[nPos] != NULL; nPos++)
+			{
+				CControlBar* pCurrentBar = GetDockedControlBar(nPos);
+				if (pCurrentBar != NULL && ::IsWindow(pCurrentBar->GetSafeHwnd()) &&
+					pCurrentBar->IsVisible())
+				{
+					CRect rectBar;
+					pCurrentBar->GetWindowRect(rectBar);
+					ScreenToClient(&rectBar);
+					iRowLeft = rectBar.left;
+					break;
+				}
+			}
+
+			int iPreviewLeft = iRowLeft;
+			int iCurrentLeft = iRowLeft;
+			BOOL bInserted = FALSE;
+			BOOL bLastWasResizable = FALSE;
+			for (nPos = nRowStart; ; nPos++)
+			{
+				if (!bInserted && nPos == nPreviewInsertPos)
+				{
+					if (bLastWasResizable)
+						iCurrentLeft += CX_SPLIT;
+					iPreviewLeft = iCurrentLeft;
+					iCurrentLeft += nDockWidth;
+					bInserted = TRUE;
+					bLastWasResizable = TRUE;
+				}
+
+				if (nPos >= m_arrBars.GetSize() || m_arrBars[nPos] == NULL)
+					break;
+
+				CControlBar* pCurrentBar = GetDockedControlBar(nPos);
+				if (pCurrentBar == NULL || !::IsWindow(pCurrentBar->GetSafeHwnd()) ||
+					!pCurrentBar->IsVisible() || pCurrentBar == pBar)
+				{
+					continue;
+				}
+
+				BOOL bCurrentResizable = (IsSizeable(pCurrentBar) &&
+					!pCurrentBar->IsKindOf(RUNTIME_CLASS(COXSizeToolBar)));
+				if (bCurrentResizable && bLastWasResizable)
+					iCurrentLeft += CX_SPLIT;
+
+				int nCurrentWidth = 0;
+				COXSizeControlBar* pCurrentSizeBar =
+					DYNAMIC_DOWNCAST(COXSizeControlBar, pCurrentBar);
+				if (pCurrentSizeBar != NULL)
+					nCurrentWidth = pCurrentSizeBar->m_HorzDockSize.cx;
+				else
+				{
+					CRect rectBar;
+					pCurrentBar->GetWindowRect(rectBar);
+					ScreenToClient(&rectBar);
+					nCurrentWidth = rectBar.Width();
+				}
+
+				iCurrentLeft += nCurrentWidth;
+				bLastWasResizable = bCurrentResizable;
+			}
+
+			if (!bInserted)
+			{
+				if (bLastWasResizable)
+					iCurrentLeft += CX_SPLIT;
+				iPreviewLeft = iCurrentLeft;
+			}
+
+			rectNew.left = iPreviewLeft;
+			if (rectNew.left + rectNew.right > rectThis.right)
+				rectNew.left = rectThis.right - rectNew.right;
+			if (rectNew.left < rectThis.left - 2)
+				rectNew.left = rectThis.left - 2;
+
+			for (int iSaved = 0; iSaved < arrSavedBars.GetSize(); iSaved++)
+			{
+				COXSizeControlBar* pSavedBar = (COXSizeControlBar*)arrSavedBars[iSaved];
+				pSavedBar->m_HorzDockSize = arrSavedHorzSizes[iSaved];
+				pSavedBar->m_VertDockSize = arrSavedVertSizes[iSaved];
+			}
+			m_bLayoutQuery = bWasLayoutQuery;
+		}
+		else if (pOXBar == NULL)
+		{
+			int iXMinimun = GetXCoord(pBar, rectNew.top, iInsertX);
+			rectNew.left = iXMinimun;
+			int iXMaximum = rectThis.right;
+
+			if (rectNew.left < iXMinimun)
+				rectNew.left = iXMinimun;
+			else if (rectNew.left + rectNew.right > iXMaximum)
+				rectNew.left = iXMaximum - rectNew.right;
+
+			if (rectNew.left < iXMinimun)
+				rectNew.left = iXMinimun;
+		}
+		else
+		{
+			rectNew.left = GetXCoord(pBar, rectNew.top, iInsertX);
+		}
+	}
+	else
+	{
+		int iInsertY = rect.top + rect.Height() / 2;
+		COXSizeControlBar* pOXBar = DYNAMIC_DOWNCAST(COXSizeControlBar, pBar);
+		int nDockWidth = rect.Width();
+		int nDockHeight = rect.Height();
+		BOOL bUseAdjustedRowPreview = FALSE;
+		if (pOXBar != NULL)
+		{
+			nDockWidth = pOXBar->m_VertDockSize.cx;
+			if (nBarsOnRow != 0)
+				nDockHeight = __max(1, nDockAreaHeight / (nBarsOnRow + 1));
+			else if (pOXBar->m_VertDockSize.cy >= nDockAreaHeight - 16)
+				nDockHeight = __max(1, nDockAreaHeight / 3);
+			else
+				nDockHeight = pOXBar->m_VertDockSize.cy;
+
+			bUseAdjustedRowPreview = (nBarsOnRow != 0);
+		}
+
+		rectNew.SetRect(iBandCoord, rect.top, nDockWidth, nDockHeight);
+
+		if (bUseAdjustedRowPreview)
+		{
+			int nRowStart = StartPosOfRow(nInsertPos);
+			int nPreviewInsertPos = nInsertPos;
+			for (int nScanPos = nRowStart;
+				nScanPos < m_arrBars.GetSize() && m_arrBars[nScanPos] != NULL;
+				nScanPos++)
+			{
+				CControlBar* pCurrentBar = GetDockedControlBar(nScanPos);
+				if (pCurrentBar == NULL || !::IsWindow(pCurrentBar->GetSafeHwnd()) ||
+					!pCurrentBar->IsVisible() || pCurrentBar == pBar)
+				{
+					continue;
+				}
+
+				CRect rectBar;
+				pCurrentBar->GetWindowRect(rectBar);
+				ScreenToClient(&rectBar);
+				if (iInsertY < rectBar.top + rectBar.Height() / 2)
+				{
+					nPreviewInsertPos = nScanPos;
+					break;
+				}
+
+				nPreviewInsertPos = nScanPos + 1;
+			}
+			CPtrArray arrOtherBarsInRow;
+			CPtrArray arrSavedBars;
+			CArray<CSize, CSize&> arrSavedHorzSizes;
+			CArray<CSize, CSize&> arrSavedVertSizes;
+
+			int nPos = nRowStart;
+			while (nPos < m_arrBars.GetSize() && m_arrBars[nPos] != NULL)
+			{
+				CControlBar* pCurrentBar = GetDockedControlBar(nPos);
+				if (pCurrentBar != NULL && ::IsWindow(pCurrentBar->GetSafeHwnd()) &&
+					pCurrentBar->IsVisible() && pCurrentBar != pBar)
+				{
+					arrOtherBarsInRow.Add(pCurrentBar);
+					COXSizeControlBar* pCurrentSizeBar =
+						DYNAMIC_DOWNCAST(COXSizeControlBar, pCurrentBar);
+					if (pCurrentSizeBar != NULL)
+					{
+						arrSavedBars.Add(pCurrentSizeBar);
+						arrSavedHorzSizes.Add(pCurrentSizeBar->m_HorzDockSize);
+						arrSavedVertSizes.Add(pCurrentSizeBar->m_VertDockSize);
+					}
+				}
+				nPos++;
+			}
+
+			arrSavedBars.Add(pOXBar);
+			arrSavedHorzSizes.Add(pOXBar->m_HorzDockSize);
+			arrSavedVertSizes.Add(pOXBar->m_VertDockSize);
+
+			arrOtherBarsInRow.Add(NULL);
+			ROWSIZEINFO rzi;
+			GetRowSizeInfo(0, &rzi, arrOtherBarsInRow);
+
+			BOOL bWasLayoutQuery = m_bLayoutQuery;
+			m_bLayoutQuery = TRUE;
+			pOXBar->m_VertDockSize.cx = nDockWidth;
+			pOXBar->m_VertDockSize.cy = nDockHeight;
+
+			int nHeightNeeded = nDockHeight;
+			if (!pBar->IsKindOf(RUNTIME_CLASS(COXSizeToolBar)) && rzi.nFlexBars > 0)
+				nHeightNeeded += CY_SPLIT;
+
+			AdjustRowSizes(0, __max(0, rzi.nTotalWidth - nHeightNeeded), arrOtherBarsInRow);
+
+			int iRowTop = rectThis.top;
+			for (nPos = nRowStart; nPos < m_arrBars.GetSize() && m_arrBars[nPos] != NULL; nPos++)
+			{
+				CControlBar* pCurrentBar = GetDockedControlBar(nPos);
+				if (pCurrentBar != NULL && ::IsWindow(pCurrentBar->GetSafeHwnd()) &&
+					pCurrentBar->IsVisible())
+				{
+					CRect rectBar;
+					pCurrentBar->GetWindowRect(rectBar);
+					ScreenToClient(&rectBar);
+					iRowTop = rectBar.top;
+					break;
+				}
+			}
+
+			int iPreviewTop = iRowTop;
+			int iCurrentTop = iRowTop;
+			BOOL bInserted = FALSE;
+			BOOL bLastWasResizable = FALSE;
+			for (nPos = nRowStart; ; nPos++)
+			{
+				if (!bInserted && nPos == nPreviewInsertPos)
+				{
+					if (bLastWasResizable)
+						iCurrentTop += CY_SPLIT;
+					iPreviewTop = iCurrentTop;
+					iCurrentTop += nDockHeight;
+					bInserted = TRUE;
+					bLastWasResizable = TRUE;
+				}
+
+				if (nPos >= m_arrBars.GetSize() || m_arrBars[nPos] == NULL)
+					break;
+
+				CControlBar* pCurrentBar = GetDockedControlBar(nPos);
+				if (pCurrentBar == NULL || !::IsWindow(pCurrentBar->GetSafeHwnd()) ||
+					!pCurrentBar->IsVisible() || pCurrentBar == pBar)
+				{
+					continue;
+				}
+
+				BOOL bCurrentResizable = (IsSizeable(pCurrentBar) &&
+					!pCurrentBar->IsKindOf(RUNTIME_CLASS(COXSizeToolBar)));
+				if (bCurrentResizable && bLastWasResizable)
+					iCurrentTop += CY_SPLIT;
+
+				int nCurrentHeight = 0;
+				COXSizeControlBar* pCurrentSizeBar =
+					DYNAMIC_DOWNCAST(COXSizeControlBar, pCurrentBar);
+				if (pCurrentSizeBar != NULL)
+					nCurrentHeight = pCurrentSizeBar->m_VertDockSize.cy;
+				else
+				{
+					CRect rectBar;
+					pCurrentBar->GetWindowRect(rectBar);
+					ScreenToClient(&rectBar);
+					nCurrentHeight = rectBar.Height();
+				}
+
+				iCurrentTop += nCurrentHeight;
+				bLastWasResizable = bCurrentResizable;
+			}
+
+			if (!bInserted)
+			{
+				if (bLastWasResizable)
+					iCurrentTop += CY_SPLIT;
+				iPreviewTop = iCurrentTop;
+			}
+
+			rectNew.top = iPreviewTop;
+			if (rectNew.top + rectNew.bottom > rectThis.bottom - GetTabHeight())
+				rectNew.top = rectThis.bottom - GetTabHeight() - rectNew.bottom;
+			if (rectNew.top < rectThis.top)
+				rectNew.top = rectThis.top;
+
+			for (int iSaved = 0; iSaved < arrSavedBars.GetSize(); iSaved++)
+			{
+				COXSizeControlBar* pSavedBar = (COXSizeControlBar*)arrSavedBars[iSaved];
+				pSavedBar->m_HorzDockSize = arrSavedHorzSizes[iSaved];
+				pSavedBar->m_VertDockSize = arrSavedVertSizes[iSaved];
+			}
+			m_bLayoutQuery = bWasLayoutQuery;
+		}
+		else if (pOXBar == NULL)
+		{
+			int iYMinimun = GetYCoord(pBar, rectNew.left, iInsertY);
+			rectNew.top = iYMinimun;
+			int iYMaximum = rectThis.bottom - GetTabHeight();
+
+			if (rectNew.top < iYMinimun)
+				rectNew.top = iYMinimun;
+			else if (rectNew.top + rectNew.bottom > iYMaximum)
+				rectNew.top = iYMaximum - rectNew.bottom;
+
+			if (rectNew.top < iYMinimun)
+				rectNew.top = iYMinimun;
+		}
+		else
+		{
+			rectNew.top = GetYCoord(pBar, rectNew.left, iInsertY);
+		}
+	}
+
+	CPoint ptScreen(rectNew.left, rectNew.top);
+	ClientToScreen(&ptScreen);
+	rectPreview.SetRect(ptScreen.x, ptScreen.y,
+		ptScreen.x + rectNew.right, ptScreen.y + rectNew.bottom);
+	return TRUE;
+}
+
+int COXSizeDockBar::GetInsertBandCoord(int nInsertPos)
+{
+	const BOOL bHorz = (m_dwStyle & CBRS_ORIENT_HORZ) != 0;
+
+	CRect rectDockBar;
+	GetWindowRect(rectDockBar);
+	ScreenToClient(&rectDockBar);
+
+	int iBandCoord = bHorz ? rectDockBar.top : rectDockBar.left;
+	int nPos = 0;
+	while (nPos < m_arrBars.GetSize())
+	{
+		int iRowCoord = -1;
+		int nBandExtent = 0;
+
+		while (nPos < m_arrBars.GetSize() && m_arrBars[nPos] != NULL)
+		{
+			CControlBar* pCurrentBar = GetDockedControlBar(nPos);
+			if (pCurrentBar != NULL && ::IsWindow(pCurrentBar->GetSafeHwnd()) &&
+				pCurrentBar->IsVisible())
+			{
+				CRect rectBar;
+				pCurrentBar->GetWindowRect(rectBar);
+				ScreenToClient(&rectBar);
+
+				if (iRowCoord == -1)
+					iRowCoord = bHorz ? rectBar.top : rectBar.left;
+
+				nBandExtent = __max(nBandExtent,
+					bHorz ? rectBar.Size().cy : rectBar.Size().cx - 1);
+			}
+
+			nPos++;
+		}
+
+		if (nInsertPos <= nPos)
+			return iRowCoord != -1 ? iRowCoord : iBandCoord;
+
+		iBandCoord += __max(0, nBandExtent - (bHorz ? afxData.cyBorder2 : afxData.cxBorder2));
+		nPos++;
+	}
+
+	return iBandCoord;
+}
+
 // This function returns the minimum X-coordinate that a control bar can take at a given
 // Y-coordinate
 int COXSizeDockBar::GetXCoord(CControlBar* pBar, int iYCoord, int iXCoord)
@@ -2184,14 +2688,14 @@ int COXSizeDockBar::GetXCoord(CControlBar* pBar, int iYCoord, int iXCoord)
 
 		// The current bar is on the same row
 
-		// If the iXCoord is to the left of the midpoint of the current
-		// bar stop and return whatever iXMin was accumulated so far
-		if (iXCoord < rectBar.left)
-			return iXMin;
-		
 		if (DYNAMIC_DOWNCAST(COXSizeControlBar, pCurrentBar) &&
 			DYNAMIC_DOWNCAST(COXSizeControlBar, pBar))
 			rectBar.right += CX_SPLIT; // separator
+
+		// If the insertion point is to the left of the current bar midpoint,
+		// stop and return the accumulated x position.
+		if (iXCoord < rectBar.left + rectBar.Width() / 2)
+			return iXMin;
 		
 		if (iXMin < rectBar.right)
 			iXMin = rectBar.right - 2;
@@ -2230,14 +2734,14 @@ int COXSizeDockBar::GetYCoord(CControlBar *pBar, int iXCoord, int iYCoord)
 
 		// The current bar is on the same column
 		
-		// If the iYCoord is higher than the midpoint of the current
-		// bar stop and return whatever iYMin was accumulated so far
-		if (iYCoord < rectBar.top)
-			return iYMin;
-		
 		if (DYNAMIC_DOWNCAST(COXSizeControlBar, pCurrentBar) &&
 			DYNAMIC_DOWNCAST(COXSizeControlBar, pBar))
 			rectBar.bottom += CY_SPLIT; // separator
+
+		// If the insertion point is above the current bar midpoint,
+		// stop and return the accumulated y position.
+		if (iYCoord < rectBar.top + rectBar.Height() / 2)
+			return iYMin;
 
 		if (iYMin < rectBar.bottom)
 			iYMin = rectBar.bottom - 2;

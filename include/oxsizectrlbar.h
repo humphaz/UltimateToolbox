@@ -7,7 +7,7 @@
 // Version: 9.3
 
 // This software along with its related components, documentation and files ("The Libraries")
-// is © 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
+// is ï¿½ 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
 // governed by a software license agreement ("Agreement").  Copies of the Agreement are
 // available at The Code Project (www.codeproject.com), as part of the package you downloaded
 // to obtain this file, or directly from our office.  For a copy of the license governing
@@ -46,8 +46,8 @@
 // You may combine both sizeable (COXSizeControlBar-derived)  and non-sizeable 
 // (CControlBar-derived) controls bars in the same application. To best get to 
 // grips with writing to these classes, read the implementation summary and 
-// look at the example. In general the steps you’ll go through are pretty
-// much the same as with MFC’s CControlBar.
+// look at the example. In general the steps youï¿½ll go through are pretty
+// much the same as with MFCï¿½s CControlBar.
 
 // 1.	Construct the MFC COXSize...Bar object, either using new, or on the stack. 
 //		Note that the constructor takes a parameter. If you wish to create an 
@@ -56,7 +56,7 @@
 //		object, than specifying a parameter to the constructor.
 // 2.	Use Create() to create the bar. 
 // 3.	Use EnableDocking().
-// 4.	Float or Dock the bar. Generally, CControlBars don’t work with much 
+// 4.	Float or Dock the bar. Generally, CControlBars donï¿½t work with much 
 //		sense until you done this step.
 
 // One feature you may find useful in deriving from COXSizeControlBar, is that 
@@ -168,6 +168,8 @@ public:
     BOOL            m_bPrevFloating;		// Indicates if control bar is floating
 	BOOL			m_bDragging;			// Indicates if the control is currently being dragged
 	BOOL			m_bOkToDrag;			// Indicates if it is okay to start dragging
+	COXSizeDockBar*	m_pPendingDockBar;	// Pending dock target while live-dragging
+	CRect			m_rectPendingDock;	// Screen-space docking hint for deferred docking
 	int				m_iLastTabPosition;		// Position in the tab control when last tabbed
 
 protected:
@@ -263,7 +265,7 @@ public:
 
    	// --- In  : pParent : Points to the parent frame window of the control. Should be derived
 	//					   from either COXMDIFrameWndSizeDock, or COXFrameWndSizeDock.
-	//			 lpszTitle : Specifies the control’s caption - used in the floating frame window,
+	//			 lpszTitle : Specifies the controlï¿½s caption - used in the floating frame window,
 	//						 when the bar is undocked.
 	//			 nID : the window ID of the controlbar
 	//			 dwStyle : The styles of the controlbar (See CControlBar for styles)

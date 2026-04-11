@@ -7,7 +7,7 @@
 // Version: 9.3
 
 // This software along with its related components, documentation and files ("The Libraries")
-// is © 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
+// is ï¿½ 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
 // governed by a software license agreement ("Agreement").  Copies of the Agreement are
 // available at The Code Project (www.codeproject.com), as part of the package you downloaded
 // to obtain this file, or directly from our office.  For a copy of the license governing
@@ -57,6 +57,128 @@ IMPLEMENT_DYNAMIC(COXSizeControlBar, CControlBar)
 
 #define new DEBUG_NEW
 
+namespace
+{
+	const int kDockPreviewBorder = 3;
+	const int kDockPreviewMinSpan = (kDockPreviewBorder * 2) + 1;
+
+	CWnd* GetDockPreviewWindow()
+	{
+		static CWnd s_wndPreview;
+		static CBrush s_brushPreview;
+
+		if (s_brushPreview.m_hObject == NULL)
+			s_brushPreview.CreateSolidBrush(::GetSysColor(COLOR_HIGHLIGHT));
+
+		if (!::IsWindow(s_wndPreview.GetSafeHwnd()))
+		{
+			CString sClassName = AfxRegisterWndClass(
+				CS_SAVEBITS,
+				::LoadCursor(NULL, IDC_ARROW),
+				(HBRUSH)s_brushPreview.GetSafeHandle(),
+				NULL);
+			s_wndPreview.CreateEx(WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE,
+				sClassName, _T(""), WS_POPUP, 0, 0, 0, 0, NULL, 0);
+		}
+
+		return &s_wndPreview;
+	}
+
+	void HideDockPreview()
+	{
+		CWnd* pPreviewWnd = GetDockPreviewWindow();
+		if (::IsWindow(pPreviewWnd->GetSafeHwnd()))
+			pPreviewWnd->ShowWindow(SW_HIDE);
+	}
+
+#ifdef _DEBUG
+	bool s_bDockPreviewTraceInitialized = false;
+	COXSizeDockBar* s_pLastDockPreviewBar = NULL;
+	CRect s_rectLastDockPreviewHint;
+	CRect s_rectLastDockPreview;
+
+	void ResetDockPreviewTrace()
+	{
+		s_bDockPreviewTraceInitialized = false;
+		s_pLastDockPreviewBar = NULL;
+		s_rectLastDockPreviewHint.SetRectEmpty();
+		s_rectLastDockPreview.SetRectEmpty();
+	}
+
+	void TraceDockPreview(COXSizeDockBar* pDockBar, const CRect& rectHint,
+		const CRect& rectPreview, const CRect& rectWindow)
+	{
+		if (s_bDockPreviewTraceInitialized && s_pLastDockPreviewBar == pDockBar &&
+			s_rectLastDockPreviewHint.EqualRect(rectHint) &&
+			s_rectLastDockPreview.EqualRect(rectPreview))
+		{
+			return;
+		}
+
+		s_bDockPreviewTraceInitialized = true;
+		s_pLastDockPreviewBar = pDockBar;
+		s_rectLastDockPreviewHint = rectHint;
+		s_rectLastDockPreview = rectPreview;
+
+		CString sTrace;
+		sTrace.Format(_T("Dock preview target=%p hint=(%d,%d,%d,%d) preview=(%d,%d,%d,%d) window=(%d,%d,%d,%d)\n"),
+			pDockBar,
+			rectHint.left, rectHint.top, rectHint.right, rectHint.bottom,
+			rectPreview.left, rectPreview.top, rectPreview.right, rectPreview.bottom,
+			rectWindow.left, rectWindow.top, rectWindow.right, rectWindow.bottom);
+		TRACE(_T("%s"), (LPCTSTR)sTrace);
+	}
+#else
+	void ResetDockPreviewTrace()
+	{
+	}
+
+	void TraceDockPreview(COXSizeDockBar*, const CRect&, const CRect&, const CRect&)
+	{
+	}
+#endif
+
+	void ShowDockPreview(const CRect& rectScreen)
+	{
+		CRect rect(rectScreen);
+		if (rect.IsRectEmpty())
+		{
+			HideDockPreview();
+			return;
+		}
+
+		if (rect.Width() < kDockPreviewMinSpan)
+			rect.right = rect.left + kDockPreviewMinSpan;
+		if (rect.Height() < kDockPreviewMinSpan)
+			rect.bottom = rect.top + kDockPreviewMinSpan;
+
+		CWnd* pPreviewWnd = GetDockPreviewWindow();
+		int nWidth = rect.Width();
+		int nHeight = rect.Height();
+
+		CRgn rgnOuter;
+		CRgn rgnInner;
+		CRgn rgnFrame;
+		rgnOuter.CreateRectRgn(0, 0, nWidth, nHeight);
+		if (nWidth > kDockPreviewBorder * 2 && nHeight > kDockPreviewBorder * 2)
+		{
+			rgnInner.CreateRectRgn(kDockPreviewBorder, kDockPreviewBorder,
+				nWidth - kDockPreviewBorder, nHeight - kDockPreviewBorder);
+			rgnFrame.CreateRectRgn(0, 0, 0, 0);
+			rgnFrame.CombineRgn(&rgnOuter, &rgnInner, RGN_DIFF);
+		}
+		else
+		{
+			rgnFrame.CreateRectRgn(0, 0, nWidth, nHeight);
+		}
+
+		pPreviewWnd->SetWindowRgn((HRGN)rgnFrame.Detach(), TRUE);
+		pPreviewWnd->SetWindowPos(&CWnd::wndTopMost, rect.left, rect.top, nWidth, nHeight,
+			SWP_NOACTIVATE | SWP_SHOWWINDOW);
+		pPreviewWnd->RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ERASE);
+	}
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // Definition of static members
 CObArray* COXSizeControlBar::m_parrAllocBars;
@@ -77,6 +199,7 @@ COXSizeControlBar::COXSizeControlBar(int nStyle) :
 	m_pDockbarSkin(NULL),
 	m_bDragging(FALSE),
 	m_bOkToDrag(FALSE),
+	m_pPendingDockBar(NULL),
 	m_ptOffset(0, 0),
 	m_bClientBorder(FALSE),
 	m_iLastTabPosition(-1)
@@ -94,6 +217,7 @@ COXSizeControlBar::COXSizeControlBar(int nStyle) :
 
 	m_FloatingPosition=CPoint(0,0);	
 	m_dwAllowDockingState = 0;
+	m_rectPendingDock.SetRectEmpty();
 	if (nStyle & SZBARF_AUTOTIDY)
 	{
 		if (m_parrAllocBars == NULL)
@@ -738,7 +862,7 @@ void COXSizeControlBar::OnLButtonDown(UINT nFlags, CPoint point)
 			}
 			return;
 		}
-		else if (AfxGetMainWnd()->SendMessage(WM_QUERYSNAPPING))
+		else if (m_pDockContext != NULL)
 		{
 			m_ptLButtonDown = point;
 			m_bOkToDrag = TRUE;
@@ -753,11 +877,40 @@ void COXSizeControlBar::OnLButtonDown(UINT nFlags, CPoint point)
 void COXSizeControlBar::OnLButtonUp(UINT nFlags, CPoint point) 
 {
 	// TODO: Add your message handler code here and/or call default
+	m_bOkToDrag = FALSE;
 
 	if (m_bDragging)
 	{
+		COXSizeDockBar* pOriginalDockBar = DYNAMIC_DOWNCAST(COXSizeDockBar, m_pDockBar);
+		int nOriginalCheckSum = (pOriginalDockBar != NULL) ? pOriginalDockBar->CheckSumBars() : -1;
+		COXSizeDockBar* pPendingDockBar = m_pPendingDockBar;
+		CRect rectPendingDock(m_rectPendingDock);
+		m_pPendingDockBar = NULL;
+		m_rectPendingDock.SetRectEmpty();
+		ResetDockPreviewTrace();
+		HideDockPreview();
 		ReleaseCapture();
 		m_bDragging = FALSE;
+		if (pPendingDockBar != NULL && !rectPendingDock.IsRectEmpty())
+		{
+			if (pPendingDockBar->IsBarHorizontal())
+				m_HorzDockSize = rectPendingDock.Size();
+			else
+				m_VertDockSize = rectPendingDock.Size();
+
+			pPendingDockBar->DockControlBar(this, rectPendingDock);
+
+			if (pOriginalDockBar != pPendingDockBar ||
+				pPendingDockBar->CheckSumBars() != nOriginalCheckSum)
+			{
+				pPendingDockBar->AdjustForNewBar(this);
+			}
+
+			pPendingDockBar->m_CountBars = 0;
+			CFrameWnd* pDockFrame = pPendingDockBar->GetDockingFrame();
+			if (pDockFrame != NULL)
+				pDockFrame->RecalcLayout();
+		}
 		return;
 	}
 
@@ -832,7 +985,17 @@ void COXSizeControlBar::OnMouseMove(UINT nFlags, CPoint point)
 	// If we are already dragging
 	if (m_bDragging)
 	{
-		CPoint ptScreen = point;
+		if (::GetKeyState(VK_LBUTTON) >= 0)
+		{
+			ResetDockPreviewTrace();
+			HideDockPreview();
+			m_pPendingDockBar = NULL;
+			m_rectPendingDock.SetRectEmpty();
+			ReleaseCapture();
+			m_bDragging = FALSE;
+			return;
+		}
+
 		ClientToScreen(&point);
 
 		// Get the appropriate dock bar. If one is not found then float.
@@ -857,31 +1020,52 @@ void COXSizeControlBar::OnMouseMove(UINT nFlags, CPoint point)
 			DispatchMessage(&msg);
 		}
 
-		if (m_pDockContext == NULL)
-			pFrameWnd->FloatControlBar(this, point);
-		else
+		if (m_pDockContext != NULL)
 		{
-			COXSizeDockBar* pDockBar = COXSizeDockBar::GetAppropriateDockBar(point, this);
-			if (pDockBar == NULL || nFlags & MK_CONTROL)
+			COXSizeDockBar* pCurrentDockBar = DYNAMIC_DOWNCAST(COXSizeDockBar, m_pDockBar);
+			if (pCurrentDockBar != NULL && pCurrentDockBar->m_wndDockTabCtrl.FindTab(this) != -1)
+				pCurrentDockBar->m_wndDockTabCtrl.RemoveTab(this);
+
+			pFrameWnd->FloatControlBar(this, point - m_ptOffset);
+
+			COXSizeDockBar* pDockBar = ((nFlags & MK_CONTROL) == 0) ?
+				COXSizeDockBar::GetAppropriateDockBar(point, this) : NULL;
+			if (pDockBar != NULL)
 			{
-				if (m_pDockBar != NULL)
+				CRect rectWindow;
+				GetWindowRect(rectWindow);
+
+				CRect rectPreview;
+				if (pDockBar->GetDockPreviewRect(this, rectWindow, rectPreview))
 				{
-					COXSizeDockBar* pSizeDockBar = DYNAMIC_DOWNCAST(COXSizeDockBar, m_pDockBar);
-					if (pSizeDockBar != NULL)
-						pSizeDockBar->m_wndDockTabCtrl.RemoveTab(this);
+					m_rectPendingDock = rectPreview;
+					m_pPendingDockBar = pDockBar;
+					TraceDockPreview(pDockBar, rectWindow, rectPreview, rectWindow);
+					ShowDockPreview(rectPreview);
 				}
-				pFrameWnd->FloatControlBar(this, point - m_ptOffset);
+				else
+				{
+					ResetDockPreviewTrace();
+					m_pPendingDockBar = NULL;
+					m_rectPendingDock.SetRectEmpty();
+					HideDockPreview();
+				}
 			}
 			else
 			{
-				// Determine the docking rectangle
-				CRect rectWindow;
-				GetWindowRect(rectWindow);
-				CRect rectDock;
-				rectDock.SetRect(point.x, point.y, point.x + rectWindow.Width(), point.y + rectWindow.Height());
-
-				pDockBar->DockControlBar(this, rectDock);
+				ResetDockPreviewTrace();
+				m_pPendingDockBar = NULL;
+				m_rectPendingDock.SetRectEmpty();
+				HideDockPreview();
 			}
+		}
+		else
+		{
+			ResetDockPreviewTrace();
+			HideDockPreview();
+			m_pPendingDockBar = NULL;
+			m_rectPendingDock.SetRectEmpty();
+			pFrameWnd->FloatControlBar(this, point);
 		}
 	}
 	else

@@ -63,12 +63,6 @@ static void AdjustRectangle(CRect& rect, CPoint pt)
 	rect.OffsetRect(nXOffset, nYOffset);
 }
 
-static void NormalizeToVirtualScreenClient(CRect& rect)
-{
-	rect.OffsetRect(-::GetSystemMetrics(SM_XVIRTUALSCREEN),
-		-::GetSystemMetrics(SM_YVIRTUALSCREEN));
-}
-
 /////////////////////////////////////////////////////////////////////////////
 // Definition of static members
 
@@ -455,8 +449,6 @@ void COXDragDockContext::DrawFocusRect(BOOL bRemoveRect)
 		// looks better one pixel in (makes the bar look pushed down)
 		rect.InflateRect(-CX_BORDER, -CY_BORDER);
 	}
-
-	NormalizeToVirtualScreenClient(rect);
 	
     // draw it and remember last size
     m_pDC->DrawDragRect(&rect, size, &m_rectLast, m_sizeLast,

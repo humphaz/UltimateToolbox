@@ -7,7 +7,7 @@
 // Version: 9.3
 
 // This software along with its related components, documentation and files ("The Libraries")
-// is © 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
+// is ï¿½ 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
 // governed by a software license agreement ("Agreement").  Copies of the Agreement are
 // available at The Code Project (www.codeproject.com), as part of the package you downloaded
 // to obtain this file, or directly from our office.  For a copy of the license governing
@@ -170,6 +170,7 @@ public:
 	// --- Effect : Returns TRUE if BAR if bar is hidden
 
 	void DockControlBar(CControlBar* pBar, LPCRECT lpRect = NULL);
+	BOOL GetDockPreviewRect(CControlBar* pBar, LPCRECT lpRect, CRect& rectPreview);
 
 // Dragging
 	int TestInsertPosition(CControlBar* pBarIns, CRect rect);
@@ -243,6 +244,7 @@ protected:
 	int GetVisibleSizeControlBarCount(CControlBar* pBar);
 	void PositionTabCtrl();
 	int GetTabHeight();
+	int GetInsertBandCoord(int nInsertPos);
 	int GetXCoord(CControlBar* pBar, int iYCoord, int iXCoord);
 	int GetYCoord(CControlBar *pBar, int iXCoord, int iYCoord);
 	CPoint GetInsertionPoint(CControlBar *pBar, CRect rect);

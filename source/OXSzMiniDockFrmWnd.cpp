@@ -7,7 +7,7 @@
 // Version: 9.3
 
 // This software along with its related components, documentation and files ("The Libraries")
-// is © 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
+// is ï¿½ 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
 // governed by a software license agreement ("Agreement").  Copies of the Agreement are
 // available at The Code Project (www.codeproject.com), as part of the package you downloaded
 // to obtain this file, or directly from our office.  For a copy of the license governing
@@ -270,54 +270,53 @@ void COXSizableMiniDockFrameWnd::OnNcLButtonDown(UINT nHitTest, CPoint point)
 				while (pBar == NULL && nPos < m_wndDockBar.m_arrBars.GetSize())
 					pBar = (CControlBar*) m_wndDockBar.m_arrBars[nPos++];
 
-				if (AfxGetMainWnd()->SendMessage(WM_QUERYSNAPPING))
+						COXSizeControlBar* pControlBar = DYNAMIC_DOWNCAST(COXSizeControlBar, pBar);
+						if (pControlBar)
 				{
-					// Snaping is enabled
+							// We have a docking window and always use live dragging for it.
+							CRect rectThis, rectControlBar;
+							GetWindowRect(rectThis);
+							pControlBar->GetWindowRect(rectControlBar);
 
-					// Handle COXCoolToolBar
-					COXCoolToolBar* pToolBar = DYNAMIC_DOWNCAST(COXCoolToolBar, pBar);
-					if (pToolBar)
-					{
-						// We have a toolbar
-						CRect rectThis, rectToolBar;
-						GetWindowRect(rectThis);
-						pToolBar->GetWindowRect(rectToolBar);
-						
-						CPoint ptClient(point);
-						pToolBar->ScreenToClient(&ptClient);
-						ptClient.x += rectToolBar.left - rectThis.left;
-						ptClient.y += rectToolBar.top - rectThis.top;
-						
-						pToolBar->SaveMouseOffset(ptClient);
+							CPoint ptClient(point);
+							pControlBar->ScreenToClient(&ptClient);
+							ptClient.x += rectControlBar.left - rectThis.left;
+							ptClient.y += rectControlBar.top - rectThis.top;
 
-						pToolBar->SetCapture();
-						pToolBar->m_bDragging = true;
-						::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_SIZEALL));
-						
-						return;
-					}
+							pControlBar->SaveMouseOffset(ptClient);
+							pControlBar->SetCapture();
+							pControlBar->m_bDragging = true;
+							::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_SIZEALL));
 
-					// Handle COXSizeControlBar
-					COXSizeControlBar* pControlBar = DYNAMIC_DOWNCAST(COXSizeControlBar, pBar);
-					if (pControlBar)
-					{
-						// We have a docking window
-						CRect rectThis, rectControlBar;
-						GetWindowRect(rectThis);
-						pControlBar->GetWindowRect(rectControlBar);
-						
-						CPoint ptClient(point);
-						pControlBar->ScreenToClient(&ptClient);
-						ptClient.x += rectControlBar.left - rectThis.left;
-						ptClient.y += rectControlBar.top - rectThis.top;
-						
-						pControlBar->SaveMouseOffset(ptClient);
-						pControlBar->SetCapture();
-						pControlBar->m_bDragging = true;
-						::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_SIZEALL));
+							return;
+						}
 
-						return;
-					}
+						if (AfxGetMainWnd()->SendMessage(WM_QUERYSNAPPING))
+						{
+							// Snaping is enabled
+
+							// Handle COXCoolToolBar
+							COXCoolToolBar* pToolBar = DYNAMIC_DOWNCAST(COXCoolToolBar, pBar);
+							if (pToolBar)
+							{
+								// We have a toolbar
+								CRect rectThis, rectToolBar;
+								GetWindowRect(rectThis);
+								pToolBar->GetWindowRect(rectToolBar);
+
+								CPoint ptClient(point);
+								pToolBar->ScreenToClient(&ptClient);
+								ptClient.x += rectToolBar.left - rectThis.left;
+								ptClient.y += rectToolBar.top - rectThis.top;
+
+								pToolBar->SaveMouseOffset(ptClient);
+
+								pToolBar->SetCapture();
+								pToolBar->m_bDragging = true;
+								::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_SIZEALL));
+
+								return;
+							}
 				}
 				else // snaping is disabled
 				{
