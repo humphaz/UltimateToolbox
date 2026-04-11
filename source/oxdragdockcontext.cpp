@@ -7,7 +7,7 @@
 // Version: 9.3
 
 // This software along with its related components, documentation and files ("The Libraries")
-// is © 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
+// is ï¿½ 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
 // governed by a software license agreement ("Agreement").  Copies of the Agreement are
 // available at The Code Project (www.codeproject.com), as part of the package you downloaded
 // to obtain this file, or directly from our office.  For a copy of the license governing
@@ -58,10 +58,15 @@ static void AdjustRectangle(CRect& rect, CPoint pt)
 {
 	int nXOffset = (pt.x < rect.left) ? (pt.x - rect.left) :
 					(pt.x > rect.right) ? (pt.x - rect.right) : 0;
-//	int nYOffset = (pt.y < rect.top) ? (pt.y - rect.top) :
-//					(pt.y > rect.bottom) ? (pt.y - rect.bottom) : 0;
-//	rect.OffsetRect(nXOffset, nYOffset);
-	rect.OffsetRect(nXOffset, 0);
+	int nYOffset = (pt.y < rect.top) ? (pt.y - rect.top) :
+					(pt.y > rect.bottom) ? (pt.y - rect.bottom) : 0;
+	rect.OffsetRect(nXOffset, nYOffset);
+}
+
+static void NormalizeToVirtualScreenClient(CRect& rect)
+{
+	rect.OffsetRect(-::GetSystemMetrics(SM_XVIRTUALSCREEN),
+		-::GetSystemMetrics(SM_YVIRTUALSCREEN));
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -450,6 +455,8 @@ void COXDragDockContext::DrawFocusRect(BOOL bRemoveRect)
 		// looks better one pixel in (makes the bar look pushed down)
 		rect.InflateRect(-CX_BORDER, -CY_BORDER);
 	}
+
+	NormalizeToVirtualScreenClient(rect);
 	
     // draw it and remember last size
     m_pDC->DrawDragRect(&rect, size, &m_rectLast, m_sizeLast,
@@ -520,7 +527,7 @@ DWORD COXDragDockContext::CanDock()
 						// if we're planning to move it to the same bar, don't change our width.
 						CRect rct;
 						m_pBar->GetWindowRect(&rct);
-						m_rectDragDock.bottom = m_rectDragDock.right +
+						m_rectDragDock.right = m_rectDragDock.left +
 							rct.Width();
 					}
 					else
