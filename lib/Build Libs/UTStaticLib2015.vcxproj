@@ -242,8 +242,9 @@
     <_ProjectFileVersion>14.0.25431.1</_ProjectFileVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseMFCShared|Win32'">
-    <OutDir>.\ReleaseMFCShared\</OutDir>
+    <OutDir>..\libs\</OutDir>
     <IntDir>.\ReleaseMFCShared\</IntDir>
+    <TargetName>UTLibSharedR</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='UnicodeDebugMFCStatic|Win32'">
     <OutDir>.\UnicodeDebugMFCStatic\</OutDir>
@@ -266,8 +267,9 @@
     <IntDir>.\ReleaseMFCStatic\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugMFCShared|Win32'">
-    <OutDir>.\DebugMFCShared\</OutDir>
+    <OutDir>..\libs\</OutDir>
     <IntDir>.\DebugMFCShared\</IntDir>
+    <TargetName>UTLibSharedD</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='UnicodeReleaseMFCShared|Win32'">
     <OutDir>.\UnicodeReleaseMFCShared\</OutDir>

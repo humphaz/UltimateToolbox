@@ -120,8 +120,9 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>.\Debug\</OutDir>
+    <OutDir>..\libs\</OutDir>
     <IntDir>.\Debug\</IntDir>
+    <TargetName>jpgd</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>..\libs\$(Platform)\</OutDir>
@@ -144,8 +145,9 @@
     <IntDir>.\jpg___Win32_ReleaseUnicode\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>.\Release\</OutDir>
+    <OutDir>..\libs\</OutDir>
     <IntDir>.\Release\</IntDir>
+    <TargetName>jpgr</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>..\libs\$(Platform)\</OutDir>
