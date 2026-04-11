@@ -566,6 +566,24 @@ void COXSizeControlBar::OnWindowPosChanged(WINDOWPOS* lpwndpos)
 
 	// This is meant to return "floating" if we're not docked yet...
     BOOL bFloating = IsProbablyFloating();
+	if ((lpwndpos->flags & SWP_NOSIZE) == 0 && NewSize.cx > 0 && NewSize.cy > 0)
+	{
+		if (bFloating)
+		{
+			m_FloatSize = NewSize;
+		}
+		else
+		{
+			COXSizeDockBar* pSizeDockBar = DYNAMIC_DOWNCAST(COXSizeDockBar, m_pDockBar);
+			if (pSizeDockBar != NULL)
+			{
+				if (pSizeDockBar->IsBarHorizontal())
+					m_HorzDockSize = NewSize;
+				else
+					m_VertDockSize = NewSize;
+			}
+		}
+	}
 	
     int Flags = (NewSize == m_PrevSize ? 0 : 1);
     Flags |= (bFloating == m_bPrevFloating ? 0 : 2);
