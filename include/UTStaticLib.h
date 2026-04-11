@@ -3,6 +3,7 @@
 // Inclide the resource declarations
 #include "OXMainRes.h"
 
+#ifndef ETHOS_SUPPRESS_UT_AUTO_LINK
 #ifdef _AFXDLL
 	// Use MFC in a Shared DLL
 	#ifdef _DEBUG
@@ -42,4 +43,5 @@
 		#endif // _UNICODE
 	#endif // _DEBUG
 #endif // _AFXDLL
+#endif // ETHOS_SUPPRESS_UT_AUTO_LINK
 
