@@ -83,6 +83,22 @@ CControlBar* GetDockedControlBar(int nPos, const CPtrArray& arrBars)
 	return pResult;
 	}
 
+static void RemoveRedundantRowSeparator(CPtrArray& arrBars, int nPos)
+	{
+	if (nPos <= 0 || arrBars.GetSize() == 0)
+		return;
+
+	if (nPos >= arrBars.GetSize())
+		{
+		if (arrBars[nPos - 1] == NULL)
+			arrBars.RemoveAt(nPos - 1);
+		return;
+		}
+
+	if (arrBars[nPos - 1] == NULL && arrBars[nPos] == NULL)
+		arrBars.RemoveAt(nPos);
+	}
+
 COXSizeDockBar::COXSizeDockBar()
 	: m_hcurSizeNS(NULL),
 	m_hcurSizeWE(NULL),
@@ -817,7 +833,7 @@ BOOL COXSizeDockBar::AdjustAllRowSizes(int nNewSize)
         // adjust the sizes on a row
         bAdjusted |= AdjustRowSizes(nPos, nNewSize, m_arrBars);
 		// skip to end of row
-        while (m_arrBars[nPos] != NULL)                 
+		while (nPos < m_arrBars.GetSize() && m_arrBars[nPos] != NULL)
 			nPos++;
 	}
     return bAdjusted;
@@ -844,7 +860,7 @@ BOOL COXSizeDockBar::AdjustRowSizes(int nPos, int nNewSize, CPtrArray& arrBars)
     // by setting the docked size of the controls bars directly. 
 	// Then RecalcLayout will do the rest.
     int nCountFlexBars = 0;
-    while (TRUE)
+	while (nPos < arrBars.GetSize())
 	{
 		void* pVoid = arrBars[nPos];
 		if (pVoid == NULL)
@@ -908,7 +924,7 @@ void COXSizeDockBar::TileDockedBars()
             continue;
 		}
         TileDockedBarsRow(nPos);                                        // adjust the sizes on a row
-        while (m_arrBars[nPos] != NULL)                         // skip to end of row
+		while (nPos < m_arrBars.GetSize() && m_arrBars[nPos] != NULL)                         // skip to end of row
             nPos++;
 	}
     return;
@@ -930,7 +946,7 @@ void COXSizeDockBar::TileDockedBarsRow(int nPos)
     int nNewWidth = nTotalSize / RZI.nFlexBars;
 	
     int nCountFlexBars = 0;
-    while(TRUE)
+	while(nPos < m_arrBars.GetSize())
 		{
 		void* pVoid = m_arrBars[nPos];    
 		if (pVoid == NULL)
@@ -1112,10 +1128,8 @@ void COXSizeDockBar::AdjustForNewBar(CControlBar* pNewBar)
 	ASSERT(nPos != -1);			// bar should have been found.
 	
 	// Go back to start of row.
-	while (m_arrBars[nPos] != NULL)
+	while (nPos > 0 && m_arrBars[nPos - 1] != NULL)
 		nPos--;
-	
-	nPos++;
 	
 	// create an array for the bars on the row, that aren't this one
 	CPtrArray arrOtherBarsInRow;
@@ -1684,7 +1698,7 @@ int COXSizeDockBar::BarsOnThisRow(CControlBar* pBarIns, CRect rect)
 		nPos --;
 	
 	int nCount = 0;
-	while (TRUE)
+	while (nPos < m_arrBars.GetSize())
 		{
 		void* pVoid = m_arrBars[nPos];
 		CControlBar* pBar = GetDockedControlBar(nPos);
@@ -1717,7 +1731,7 @@ void COXSizeDockBar::ResizeBar(COXSizeControlBar* pBar, BOOL bMaximize)
 	if(bMaximize)
 	{
 		int nPosCopy=nPos;
-		while(TRUE)
+		while(nPos < m_arrBars.GetSize())
 		{
 			void* pVoid = m_arrBars[nPos];    
 			if (pVoid == NULL)
@@ -1747,7 +1761,7 @@ void COXSizeDockBar::ResizeBar(COXSizeControlBar* pBar, BOOL bMaximize)
 	
     int nMargin=0;
 
-    while(TRUE)
+	while(nPos < m_arrBars.GetSize())
 	{
 		void* pVoid = m_arrBars[nPos];    
 		if (pVoid == NULL)
@@ -1887,7 +1901,7 @@ void* FindInArray(void* pFindId, void** pArray)
 CString GetBarTitles(const CPtrArray& arrBars, int nPos)  
 	{
 	CString strMsg, strTitle;
-	while (arrBars[nPos] != 0)
+	while (nPos < arrBars.GetSize() && arrBars[nPos] != 0)
 		{
 		CControlBar* pBar = ::GetDockedControlBar(nPos, arrBars);
 		pBar->GetWindowText(strTitle);
@@ -2843,15 +2857,13 @@ BOOL COXSizeDockBar::RemoveControlBar(CControlBar* pBar, int nPosExclude, int nA
 			m_arrBars.RemoveAt(nPos);
 
 			// remove section indicator (NULL) if nothing else in section
-			if (m_arrBars[nPos-1] == NULL && m_arrBars[nPos] == NULL)
-				m_arrBars.RemoveAt(nPos);
+			RemoveRedundantRowSeparator(m_arrBars, nPos);
 		}
 	}
 	else
 	{
 		m_arrBars.RemoveAt(nPos);
-		if (m_arrBars[nPos-1] == NULL && m_arrBars[nPos] == NULL)
-			m_arrBars.RemoveAt(nPos);
+		RemoveRedundantRowSeparator(m_arrBars, nPos);
 
 		// Remove any pre-existing place holders.
 		if (nAddPlaceHolder != -1)
