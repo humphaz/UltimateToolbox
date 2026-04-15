@@ -191,6 +191,7 @@ typedef struct _tagTAB_ITEM_ENTRY
 {
 	CString sText;
 	CString sWndClass;
+	CWnd* pWnd;
 	HWND hWnd;
 	BOOL bFound;
 
@@ -198,6 +199,7 @@ typedef struct _tagTAB_ITEM_ENTRY
 //
 //	sText		-	MDIChild window text.
 //	sWndClass	-	Name of the window class. 
+//	pWnd		-	Pointer to the MDIChild window object when one is available.
 //	hWnd		-	Handle of the MDIChild window.
 //	bFound		-	Parameter used for integrity testing. Set to TRUE if 
 //					corresponding MDIChild window is still active.

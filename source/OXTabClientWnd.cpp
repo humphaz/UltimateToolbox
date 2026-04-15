@@ -568,15 +568,23 @@ void COXTabWorkspace::UpdateContents(BOOL bAddNewWindows/*=FALSE*/,
 #ifdef _DEBUG
     for(nIndex=0; nIndex<m_arrTab.GetSize(); nIndex++)
 	{
-		ASSERT(m_arrTab[nIndex].bFound);
+		if(::IsWindow(m_arrTab[nIndex].hWnd))
+		{
+			ASSERT(m_arrTab[nIndex].bFound);
+		}
 	}
 #endif
 
 	// Set the active item
-    if(nActiveIndex>=0 && GetCurSel()!=nActiveIndex)
+	int nItemCount=GetItemCount();
+    if(nActiveIndex>=0 && nActiveIndex<nItemCount && GetCurSel()!=nActiveIndex)
 	{
 		SetCurSel(nActiveIndex);
 		bRecalc=TRUE;
+	}
+	else if(nActiveIndex>=nItemCount)
+	{
+		LogTabWorkspaceEvent(TEXT("Skipped active tab selection index=%d actualCount=%d"), nActiveIndex, nItemCount);
 	}
 
 	if(bRecalc)
@@ -670,7 +678,14 @@ BOOL COXTabWorkspace::InsertTabItem(int nIndex, const CWnd* pChildWnd,
 	tci.iImage=nImageIndex;
 
 	// Insert new tab control item
-	VERIFY(InsertItem(nIndex,&tci)!=-1);
+	if(InsertItem(nIndex,&tci)==-1)
+	{
+		LogTabWorkspaceEvent(TEXT("InsertItem failed index=%d hwnd=%p text=%s"),
+			nIndex,
+			pChildWnd->GetSafeHwnd(),
+			(LPCTSTR)EscapeTabLogText(sWindowText));
+		return FALSE;
+	}
 
 	// Redraw the tab control
 	if(!m_arrTab.GetSize() && bRedraw)
@@ -684,6 +699,7 @@ BOOL COXTabWorkspace::InsertTabItem(int nIndex, const CWnd* pChildWnd,
 		m_arrTab[nTabItemIndex]=m_arrTab[nTabItemIndex-1];
 	}
 	newTabItemEntry.sText=sWindowText;
+	newTabItemEntry.pWnd=(CWnd*)pChildWnd;
 	newTabItemEntry.hWnd=pChildWnd->GetSafeHwnd();
 	newTabItemEntry.bFound=TRUE;
 	newTabItemEntry.sWndClass=sWndClass;
@@ -721,7 +737,17 @@ BOOL COXTabWorkspace::RemoveTabItem(HWND hWnd, BOOL bRedraw/*=TRUE*/)
 		return FALSE;
 
 	// Delete the item
-	DeleteItem(nTabItem);
+	if(nTabItem<GetItemCount())
+	{
+		DeleteItem(nTabItem);
+	}
+	else
+	{
+		LogTabWorkspaceEvent(TEXT("Skipping DeleteItem for stale tab index=%d actualCount=%d hwnd=%p"),
+			nTabItem,
+			GetItemCount(),
+			hWnd);
+	}
 	// Remove entry from the internal array of created items
 	m_arrTab.RemoveAt(nTabItem);
 
