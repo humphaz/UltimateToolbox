@@ -8,7 +8,7 @@
 // Version: 9.3
 
 // This software along with its related components, documentation and files ("The Libraries")
-// is © 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
+// is ï¿½ 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
 // governed by a software license agreement ("Agreement").  Copies of the Agreement are
 // available at The Code Project (www.codeproject.com), as part of the package you downloaded
 // to obtain this file, or directly from our office.  For a copy of the license governing
@@ -191,14 +191,14 @@ typedef struct _tagTAB_ITEM_ENTRY
 {
 	CString sText;
 	CString sWndClass;
-	CWnd* pWnd;
+	HWND hWnd;
 	BOOL bFound;
 
 } TAB_ITEM_ENTRY;
 //
 //	sText		-	MDIChild window text.
 //	sWndClass	-	Name of the window class. 
-//	pWnd		-	Pointer to MDIChild window object.
+//	hWnd		-	Handle of the MDIChild window.
 //	bFound		-	Parameter used for integrity testing. Set to TRUE if 
 //					corresponding MDIChild window is still active.
 //
@@ -351,6 +351,7 @@ protected:
 		BOOL bOnlyVisible=TRUE);
 	// Removes the tab item for the specified window
 	BOOL RemoveTabItem(const CWnd* pChildWnd, BOOL bRedraw=TRUE);
+	BOOL RemoveTabItem(HWND hWnd, BOOL bRedraw=TRUE);
 
 	// Retrieves an icon associated with the specified window
 	static HICON GetWindowIcon(HWND hWnd);

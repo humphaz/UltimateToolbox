@@ -8,7 +8,7 @@
 // Version: 9.3
 
 // This software along with its related components, documentation and files ("The Libraries")
-// is © 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
+// is ï¿½ 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
 // governed by a software license agreement ("Agreement").  Copies of the Agreement are
 // available at The Code Project (www.codeproject.com), as part of the package you downloaded
 // to obtain this file, or directly from our office.  For a copy of the license governing
@@ -25,6 +25,74 @@
 #undef THIS_FILE
 static char THIS_FILE[] = __FILE__;
 #endif
+
+namespace
+{
+	CString EscapeTabLogText(const CString& text)
+	{
+		CString escaped = text;
+		escaped.Replace(TEXT("\r"), TEXT("\\r"));
+		escaped.Replace(TEXT("\n"), TEXT("\\n"));
+		return escaped;
+	}
+
+	void LogTabWorkspaceEventV(LPCTSTR format, va_list arguments)
+	{
+		DWORD required = GetEnvironmentVariable(TEXT("ETHOS_UI_DEBUG_LOG"), NULL, 0);
+		if (required == 0)
+		{
+			return;
+		}
+
+		CString logPath;
+		LPTSTR buffer = logPath.GetBuffer(required);
+		DWORD written = GetEnvironmentVariable(TEXT("ETHOS_UI_DEBUG_LOG"), buffer, required);
+		logPath.ReleaseBuffer((written > 0) ? written : 0);
+		if (logPath.IsEmpty())
+		{
+			return;
+		}
+
+		CString message;
+		message.FormatV(format, arguments);
+		message.Replace(TEXT("\r"), TEXT("\\r"));
+		message.Replace(TEXT("\n"), TEXT("\\n"));
+
+		SYSTEMTIME now;
+		GetLocalTime(&now);
+
+		CString line;
+		line.Format(TEXT("%04u-%02u-%02u %02u:%02u:%02u.%03u [pid=%lu tid=%lu] [OXTabWorkspace] %s\r\n"),
+			now.wYear,
+			now.wMonth,
+			now.wDay,
+			now.wHour,
+			now.wMinute,
+			now.wSecond,
+			now.wMilliseconds,
+			GetCurrentProcessId(),
+			GetCurrentThreadId(),
+			(LPCTSTR)message);
+
+		CStdioFile file;
+		if (!file.Open(logPath, CFile::modeCreate | CFile::modeNoTruncate | CFile::modeWrite | CFile::typeText | CFile::shareDenyNone))
+		{
+			return;
+		}
+
+		file.SeekToEnd();
+		file.WriteString(line);
+		file.Close();
+	}
+
+	void LogTabWorkspaceEvent(LPCTSTR format, ...)
+	{
+		va_list arguments;
+		va_start(arguments, format);
+		LogTabWorkspaceEventV(format, arguments);
+		va_end(arguments);
+	}
+}
 
 // Change tab on drag over handler
 DROPEFFECT COXTabWorkspaceDropTarget::OnDragOver(CWnd* pWnd, 
@@ -51,13 +119,15 @@ DROPEFFECT COXTabWorkspaceDropTarget::OnDragOver(CWnd* pWnd,
     if(nItem>=0 && m_nOldItem!=nItem)
     {
 		// Get the pointer to the corresponding MDIChild 
-		CWnd* pChildWnd=pTabWorkspace->m_arrTab[nItem].pWnd;
+		HWND hChildWnd=pTabWorkspace->m_arrTab[nItem].hWnd;
+		CWnd* pChildWnd=::IsWindow(hChildWnd) ? CWnd::FromHandle(hChildWnd) : NULL;
 
-		if(::IsWindow(pChildWnd->GetSafeHwnd()))
+		if((pChildWnd != NULL) && ::IsWindow(hChildWnd))
 		{
 			// Activate it
 			pTabWorkspace->GetParentFrame()->MDIActivate(pChildWnd);
 		    m_nOldItem=pTabWorkspace->HitTest(&hitTest);
+			LogTabWorkspaceEvent(TEXT("DragOver activated tab index=%d hwnd=%p"), nItem, hChildWnd);
 		}
     }
 
@@ -238,11 +308,16 @@ BOOL COXTabWorkspace::OnSelchange(NMHDR* pNMHDR, LRESULT* pResult)
     if(GetCurSel()>=0)
     {
 		// Get the pointer to the MDIChild that will be activated
-		CWnd* pChildWnd=m_arrTab[GetCurSel()].pWnd;
+		HWND hChildWnd=m_arrTab[GetCurSel()].hWnd;
+		CWnd* pChildWnd=::IsWindow(hChildWnd) ? CWnd::FromHandle(hChildWnd) : NULL;
 
-		if(::IsWindow(pChildWnd->GetSafeHwnd()))
+		if((pChildWnd != NULL) && ::IsWindow(hChildWnd))
 		{
 			GetParentFrame()->MDIActivate(pChildWnd);
+		}
+		else
+		{
+			LogTabWorkspaceEvent(TEXT("Selection change skipped invalid hwnd=%p index=%d"), hChildWnd, GetCurSel());
 		}
     }
 
@@ -267,9 +342,10 @@ void COXTabWorkspace::OnLButtonDblClk(UINT nFlags, CPoint point)
     if(GetCurSel()>=0)
     {
 		// Get the pointer to the MDIChild that will be maximized/restored
-		CWnd* pChildWnd=m_arrTab[GetCurSel()].pWnd;
+		HWND hChildWnd=m_arrTab[GetCurSel()].hWnd;
+		CWnd* pChildWnd=::IsWindow(hChildWnd) ? CWnd::FromHandle(hChildWnd) : NULL;
 
-		if(::IsWindow(pChildWnd->GetSafeHwnd()))
+		if((pChildWnd != NULL) && ::IsWindow(hChildWnd))
 		{
 		    BOOL bMaximize=FALSE;
 			CWnd* pActiveWnd=GetParentFrame()->MDIGetActive(&bMaximize);
@@ -279,6 +355,10 @@ void COXTabWorkspace::OnLButtonDblClk(UINT nFlags, CPoint point)
 				GetParentFrame()->MDIRestore(pChildWnd);
 			else
 				GetParentFrame()->MDIMaximize(pChildWnd);
+		}
+		else
+		{
+			LogTabWorkspaceEvent(TEXT("Double click skipped invalid hwnd=%p index=%d"), hChildWnd, GetCurSel());
 		}
     }
 }
@@ -302,14 +382,20 @@ void COXTabWorkspace::UpdateContents(BOOL bAddNewWindows/*=FALSE*/,
 
 	// Get pointer to currently active MDIChild
     CWnd* pActiveChildWnd=pFrameWnd->MDIGetActive(NULL);
+	HWND hActiveChildWnd=(pActiveChildWnd!=NULL) ? pActiveChildWnd->GetSafeHwnd() : NULL;
 
-    CMDIChildWnd* pChildWnd=NULL;
+	HWND hChildWnd=NULL;
     int nActiveIndex=-1;
 
 	// Start enumerating from currently active MDIChild
     if(pActiveChildWnd!=NULL)
 	{
-		pChildWnd=(CMDIChildWnd*)pActiveChildWnd->GetWindow(GW_HWNDFIRST);
+		hChildWnd=::GetWindow(hActiveChildWnd,GW_HWNDFIRST);
+	}
+
+	if(m_arrTab.GetSize()!=GetItemCount())
+	{
+		LogTabWorkspaceEvent(TEXT("Tab count mismatch cached=%d actual=%d"), PtrToInt(m_arrTab.GetSize()), GetItemCount());
 	}
 
     // Flag all current tabs as unfound (for debug purposes in order to check
@@ -325,19 +411,33 @@ void COXTabWorkspace::UpdateContents(BOOL bAddNewWindows/*=FALSE*/,
 	int nInsertIndex= PtrToInt(m_arrTab.GetSize());
 
 	// Enumerate all child windows
-    while(pChildWnd!=NULL)
+    while(hChildWnd!=NULL)
     {
+		HWND hNextChildWnd=::GetWindow(hChildWnd,GW_HWNDNEXT);
+		CMDIChildWnd* pChildWnd=(CMDIChildWnd*)CWnd::FromHandlePermanent(hChildWnd);
+		if(pChildWnd==NULL)
+		{
+			pChildWnd=(CMDIChildWnd*)CWnd::FromHandle(hChildWnd);
+		}
+
+		if(pChildWnd==NULL)
+		{
+			LogTabWorkspaceEvent(TEXT("Skipping null child wrapper hwnd=%p"), hChildWnd);
+			hChildWnd=hNextChildWnd;
+			continue;
+		}
+
 		// Window text
 		CString sWindowText=GetTextForTabItem(pChildWnd);
 
 		// see if can find it
-		int nFoundItem=FindTabItem(pChildWnd->GetSafeHwnd());
+		int nFoundItem=FindTabItem(hChildWnd);
 
 		if(nFoundItem!=-1)
 		{
 			if((pChildWnd->GetStyle()&WS_VISIBLE)==WS_VISIBLE)
 			{
-				if(pChildWnd==pActiveChildWnd)
+				if(hChildWnd==hActiveChildWnd)
 				{
 					// Found currently active MDIChild
 					nActiveIndex=nFoundItem;
@@ -351,6 +451,7 @@ void COXTabWorkspace::UpdateContents(BOOL bAddNewWindows/*=FALSE*/,
 				if(m_arrTab[nFoundItem].sText!=sWindowText)
 				{
 					m_arrTab[nFoundItem].sText=sWindowText;
+					CString sLoggedWindowText=EscapeTabLogText(sWindowText);
 
 					//replace "&" characters for doubles "&&"
 					int nFind=sWindowText.Find(TEXT('&'));
@@ -370,7 +471,29 @@ void COXTabWorkspace::UpdateContents(BOOL bAddNewWindows/*=FALSE*/,
 					TC_ITEM tci;
 					tci.mask=TCIF_TEXT;
 					tci.pszText=(LPTSTR)(LPCTSTR)sWindowText;
-					SetItem(nFoundItem,&tci);
+					if(nFoundItem<0 || nFoundItem>=GetItemCount())
+					{
+						LogTabWorkspaceEvent(TEXT("Skipped text update index=%d actualCount=%d cachedCount=%d hwnd=%p text=%s"),
+							nFoundItem,
+							GetItemCount(),
+							PtrToInt(m_arrTab.GetSize()),
+							hChildWnd,
+							(LPCTSTR)sLoggedWindowText);
+					}
+					else if(!SetItem(nFoundItem,&tci))
+					{
+						LogTabWorkspaceEvent(TEXT("SetItem text update failed index=%d hwnd=%p text=%s"),
+							nFoundItem,
+							hChildWnd,
+							(LPCTSTR)sLoggedWindowText);
+					}
+					else
+					{
+						LogTabWorkspaceEvent(TEXT("Updated tab text index=%d hwnd=%p text=%s"),
+							nFoundItem,
+							hChildWnd,
+							(LPCTSTR)sLoggedWindowText);
+					}
 
 					bRecalc=TRUE;
 				}
@@ -379,25 +502,47 @@ void COXTabWorkspace::UpdateContents(BOOL bAddNewWindows/*=FALSE*/,
 				{
 					TC_ITEM tci;
 					tci.mask=TCIF_IMAGE;
-					GetItem(nFoundItem,&tci);
-					// Update icon if necessary
-					HICON hIcon=GetWindowIcon(pChildWnd->GetSafeHwnd());
-					int nImageIndex=(hIcon==NULL ? -1 : AddTabItemIcon(hIcon));
-					if(nImageIndex!=tci.iImage)
+					if(nFoundItem<0 || nFoundItem>=GetItemCount())
 					{
-						tci.iImage=nImageIndex;
-						SetItem(nFoundItem,&tci);
+						LogTabWorkspaceEvent(TEXT("Skipped icon refresh index=%d actualCount=%d hwnd=%p"),
+							nFoundItem,
+							GetItemCount(),
+							hChildWnd);
+					}
+					else if(GetItem(nFoundItem,&tci))
+					{
+						// Update icon if necessary
+						HICON hIcon=GetWindowIcon(pChildWnd->GetSafeHwnd());
+						int nImageIndex=(hIcon==NULL ? -1 : AddTabItemIcon(hIcon));
+						if(nImageIndex!=tci.iImage)
+						{
+							tci.iImage=nImageIndex;
+							if(!SetItem(nFoundItem,&tci))
+							{
+								LogTabWorkspaceEvent(TEXT("SetItem image update failed index=%d hwnd=%p image=%d"),
+									nFoundItem,
+									hChildWnd,
+									nImageIndex);
+							}
+						}
+					}
+					else
+					{
+						LogTabWorkspaceEvent(TEXT("GetItem image refresh failed index=%d hwnd=%p"),
+							nFoundItem,
+							hChildWnd);
 					}
 				}
 			}
 			else
 			{
+				LogTabWorkspaceEvent(TEXT("Removing hidden tab index=%d hwnd=%p"), nFoundItem, hChildWnd);
 				nInsertIndex--;
 				if(nActiveIndex!=-1 && nActiveIndex>nFoundItem)
 				{
 					nActiveIndex--;
 				}
-				RemoveTabItem(pChildWnd,FALSE);
+				RemoveTabItem(hChildWnd,FALSE);
 				bRecalc=TRUE;
 			}
 		}
@@ -408,12 +553,16 @@ void COXTabWorkspace::UpdateContents(BOOL bAddNewWindows/*=FALSE*/,
 				nActiveIndex++;
 			}
 			// add item
+			LogTabWorkspaceEvent(TEXT("Inserting new tab index=%d hwnd=%p text=%s"),
+				nInsertIndex,
+				hChildWnd,
+				(LPCTSTR)EscapeTabLogText(sWindowText));
 			InsertTabItem(nInsertIndex,pChildWnd,FALSE);
 			bRecalc=TRUE;
 		}
 
 		// Get next MDIChild
-		pChildWnd=(CMDIChildWnd*)pChildWnd->GetWindow(GW_HWNDNEXT);
+		hChildWnd=hNextChildWnd;
     }
 
 #ifdef _DEBUG
@@ -462,9 +611,15 @@ int COXTabWorkspace::FindTabItem(const HWND hWnd) const
 	for(int nIndex=0; nIndex<m_arrTab.GetSize(); nIndex++)
 	{
 		// Check for window handle
-		if(m_arrTab[nIndex].pWnd->GetSafeHwnd()==hWnd)
+		if(m_arrTab[nIndex].hWnd==hWnd)
 		{
 			// Double check for window class name
+			if(!::IsWindow(hWnd))
+			{
+				nFoundItem=nIndex;
+				break;
+			}
+
 			TCHAR sWndClass[512];
 			GetClassName(hWnd,sWndClass,sizeof(sWndClass)/sizeof(TCHAR));
 			if(m_arrTab[nIndex].sWndClass==sWndClass)
@@ -529,7 +684,7 @@ BOOL COXTabWorkspace::InsertTabItem(int nIndex, const CWnd* pChildWnd,
 		m_arrTab[nTabItemIndex]=m_arrTab[nTabItemIndex-1];
 	}
 	newTabItemEntry.sText=sWindowText;
-	newTabItemEntry.pWnd=(CWnd*)pChildWnd;
+	newTabItemEntry.hWnd=pChildWnd->GetSafeHwnd();
 	newTabItemEntry.bFound=TRUE;
 	newTabItemEntry.sWndClass=sWndClass;
 	m_arrTab.SetAt(nIndex,newTabItemEntry);
@@ -547,12 +702,20 @@ BOOL COXTabWorkspace::InsertTabItem(int nIndex, const CWnd* pChildWnd,
 // Remove item from the tab control that corresponds to specified MDIChild
 BOOL COXTabWorkspace::RemoveTabItem(const CWnd* pChildWnd, BOOL bRedraw/*=TRUE*/)
 {
-	ASSERT(pChildWnd!=NULL);
-	ASSERT(::IsWindow(pChildWnd->GetSafeHwnd()));
-	ASSERT((pChildWnd->GetExStyle()&WS_EX_MDICHILD)!=0);
+	if(pChildWnd==NULL)
+		return FALSE;
+
+	return RemoveTabItem(pChildWnd->GetSafeHwnd(), bRedraw);
+	
+}
+
+BOOL COXTabWorkspace::RemoveTabItem(HWND hWnd, BOOL bRedraw/*=TRUE*/)
+{
+	if(hWnd==NULL)
+		return FALSE;
 
 	// Find the item
-	int nTabItem=FindTabItem(pChildWnd);
+	int nTabItem=FindTabItem(hWnd);
 
 	if(nTabItem==-1)
 		return FALSE;
@@ -576,7 +739,7 @@ BOOL COXTabWorkspace::RemoveTabItem(const CWnd* pChildWnd, BOOL bRedraw/*=TRUE*/
 CString COXTabWorkspace::GetTextForTabItem(const CWnd* pChildWnd) const
 {
 	ASSERT(pChildWnd!=NULL);
-	ASSERT(pChildWnd->IsKindOf(RUNTIME_CLASS(CMDIChildWnd)));
+	ASSERT(::IsWindow(pChildWnd->GetSafeHwnd()));
 
 	CString sWindowText=(LPCTSTR)((CWnd*)pChildWnd)->
 		SendMessage(OXWM_MTI_GETWINDOWTEXT);
