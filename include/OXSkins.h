@@ -1065,7 +1065,7 @@ private:
 // Header file : OXSkins.h
 
 // This software along with its related components, documentation and files ("The Libraries")
-// is © 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
+// is ï¿½ 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
 // governed by a software license agreement ("Agreement").  Copies of the Agreement are
 // available at The Code Project (www.codeproject.com), as part of the package you downloaded
 // to obtain this file, or directly from our office.  For a copy of the license governing
@@ -1194,11 +1194,11 @@ public:
 	virtual COLORREF GetDisabledTextColor();
 	virtual COLORREF GetDisabledMenuTextColor();
 
-	COLORREF GetHiddenItemBackgroundColor();
-	COLORREF GetTextColor();
-	COLORREF GetSelectedTextColor();
-	COLORREF GetTabButtonsBackgroundColor();
-	COLORREF GetStatusPaneColor();
+	virtual COLORREF GetHiddenItemBackgroundColor();
+	virtual COLORREF GetTextColor();
+	virtual COLORREF GetSelectedTextColor();
+	virtual COLORREF GetTabButtonsBackgroundColor();
+	virtual COLORREF GetStatusPaneColor();
 	void DrawTransparentBitmap(CBitmap* pBitmap, CDC* pDestDC, int x, int y, int nWidth, int nHeight, COLORREF clrTransColor);
 	virtual void DrawFrameButton(CDC* pDC, CRect& rcButton, UINT uType, BOOL bDisabled, BOOL bInvertFace, COLORREF clrBackground, CWnd* pParentWnd);
 	COLORREF InvertColor(COLORREF clr);

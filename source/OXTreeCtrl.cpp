@@ -7,7 +7,7 @@
 // Version: 9.3
 
 // This software along with its related components, documentation and files ("The Libraries")
-// is © 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
+// is ï¿½ 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
 // governed by a software license agreement ("Agreement").  Copies of the Agreement are
 // available at The Code Project (www.codeproject.com), as part of the package you downloaded
 // to obtain this file, or directly from our office.  For a copy of the license governing
@@ -18,6 +18,7 @@
 
 #include "stdafx.h"
 #include "OXTreeCtrl.h"
+#include "OXSkins.h"
 
 #include "UTBStrOp.h"
 #include "UTB64Bit.h"
@@ -30,6 +31,45 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 #define _OX_MAX_ITEM_TEXT	300
+
+namespace
+{
+	BOOL ShouldUseSkinnedTreeHeader()
+	{
+		CWinApp* pApp = AfxGetApp();
+		if ((pApp == NULL) || !pApp->IsKindOf(RUNTIME_CLASS(COXSkinnedApp)))
+		{
+			return FALSE;
+		}
+
+		COXSkin* pSkin = ((COXSkinnedApp*)pApp)->GetCurrentSkin();
+		return (pSkin != NULL) && (pSkin->GetName().CompareNoCase(_T("Classic")) != 0);
+	}
+
+	void EnsureHeaderItemOwnerDraw(COXTreeCtrl* pTreeCtrl, int nCol)
+	{
+		if (!ShouldUseSkinnedTreeHeader() || (pTreeCtrl == NULL))
+		{
+			return;
+		}
+
+		HWND hHeader = pTreeCtrl->GetHeaderCtrlHandle();
+		if (hHeader == NULL)
+		{
+			return;
+		}
+
+		CHeaderCtrl* pHeader = (CHeaderCtrl*)CWnd::FromHandle(hHeader);
+		HD_ITEM hditem;
+		::ZeroMemory(&hditem, sizeof(hditem));
+		hditem.mask = HDI_FORMAT;
+		if (pHeader->GetItem(nCol, &hditem))
+		{
+			hditem.fmt |= HDF_OWNERDRAW;
+			pHeader->SetItem(nCol, &hditem);
+		}
+	}
+}
 
 /////////////////////////////////////////////////////////////////////////////
 // COXTreeCtrl
@@ -1999,16 +2039,24 @@ DWORD COXTreeCtrl::GetExStyle() const
 
 int COXTreeCtrl::InsertColumn(int nCol, const LV_COLUMN* pColumn)
 {
-	BOOL bRet= CListCtrl::InsertColumn(nCol,pColumn);
-	return bRet;
+	int nResult = CListCtrl::InsertColumn(nCol, pColumn);
+	if (nResult != -1)
+	{
+		EnsureHeaderItemOwnerDraw(this, nCol);
+	}
+	return nResult;
 }
 
 int COXTreeCtrl::InsertColumn(int nCol, LPCTSTR lpszColumnHeading, 
 							  int nFormat, int nWidth, int nSubItem)
 {
-	BOOL bRet=CListCtrl::InsertColumn(nCol,lpszColumnHeading,nFormat,
-		nWidth,nSubItem);
-	return bRet;
+	int nResult = CListCtrl::InsertColumn(nCol, lpszColumnHeading, nFormat,
+		nWidth, nSubItem);
+	if (nResult != -1)
+	{
+		EnsureHeaderItemOwnerDraw(this, nCol);
+	}
+	return nResult;
 }
 
 BOOL COXTreeCtrl::SetSubItem(HTREEITEM hItem, int nColumn, UINT uFlags,

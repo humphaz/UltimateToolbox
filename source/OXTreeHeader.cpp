@@ -1,5 +1,5 @@
 // This software along with its related components, documentation and files ("The Libraries")
-// is © 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
+// is ï¿½ 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
 // governed by a software license agreement ("Agreement").  Copies of the Agreement are
 // available at The Code Project (www.codeproject.com), as part of the package you downloaded
 // to obtain this file, or directly from our office.  For a copy of the license governing
@@ -13,6 +13,7 @@
 #include "stdafx.h"
 #include "OXTreeHeader.h"
 #include "OXTreeCtrl.h"
+#include "OXSkins.h"
 
 #pragma warning (disable : 4102)
 
@@ -27,6 +28,47 @@ static char THIS_FILE[] = __FILE__;
 
 HHOOK COXTreeHeader::m_hMouseHook = NULL;
 HWND COXTreeHeader::m_hwndPrevMouseMoveWnd = NULL;
+
+namespace
+{
+	COXSkinXP* GetActiveSkinXP()
+	{
+		CWinApp* pApp = AfxGetApp();
+		if ((pApp == NULL) || !pApp->IsKindOf(RUNTIME_CLASS(COXSkinnedApp)))
+		{
+			return NULL;
+		}
+
+		COXSkinnedApp* pSkinnedApp = (COXSkinnedApp*)pApp;
+		COXSkin* pSkin = pSkinnedApp->GetCurrentSkin();
+		if ((pSkin == NULL) || (pSkin->GetName().CompareNoCase(_T("Classic")) == 0))
+		{
+			return NULL;
+		}
+
+		return dynamic_cast<COXSkinXP*>(pSkin);
+	}
+
+	void EnsureOwnerDrawColumns(CHeaderCtrl* pHeader)
+	{
+		if ((pHeader == NULL) || !::IsWindow(pHeader->GetSafeHwnd()))
+		{
+			return;
+		}
+
+		for (int itemIndex = 0; itemIndex < pHeader->GetItemCount(); itemIndex++)
+		{
+			HD_ITEM hditem;
+			::ZeroMemory(&hditem, sizeof(hditem));
+			hditem.mask = HDI_FORMAT;
+			if (pHeader->GetItem(itemIndex, &hditem))
+			{
+				hditem.fmt |= HDF_OWNERDRAW;
+				pHeader->SetItem(itemIndex, &hditem);
+			}
+		}
+	}
+}
 
 IMPLEMENT_DYNAMIC(COXTreeHeader, CHeaderCtrl)
 
@@ -119,19 +161,17 @@ BOOL COXTreeHeader::SortColumn(int nCol, int nSortOrder)
 	CWnd* pParentWnd=GetParent();
 	ASSERT(pParentWnd->IsKindOf(RUNTIME_CLASS(CListCtrl)));
 
+	if (GetActiveSkinXP() != NULL)
+	{
+		EnsureOwnerDrawColumns(this);
+		goto out;
+	}
+
 #ifdef _UT_UXTHEME
 	
 	if (::GetWindowTheme(m_hWnd) != NULL)
 	{
-		// Change all items to owner draw
-		for (int i = 0; i < GetItemCount(); i++)
-		{
-			HD_ITEM hditem;	
-			hditem.mask=HDI_FORMAT;
-			GetItem(i,&hditem);
-			hditem.fmt|=HDF_OWNERDRAW;
-			SetItem(i,&hditem);
-		}
+		EnsureOwnerDrawColumns(this);
 		goto out;
 	}
 #endif // _UT_UXTHEME
@@ -169,6 +209,100 @@ out:
 
 void COXTreeHeader::DrawItem( LPDRAWITEMSTRUCT lpDrawItemStruct )
 {
+	COXSkinXP* pSkinXP = GetActiveSkinXP();
+	if (pSkinXP != NULL)
+	{
+		CDC dc;
+		dc.Attach(lpDrawItemStruct->hDC);
+		CRect rectItem(lpDrawItemStruct->rcItem);
+
+		POINT ptCursor;
+		::GetCursorPos(&ptCursor);
+		ScreenToClient(&ptCursor);
+
+		BOOL bPressed = (lpDrawItemStruct->itemState == ODS_SELECTED);
+		BOOL bHot = rectItem.PtInRect(ptCursor);
+		COLORREF background = pSkinXP->GetMenuFaceColor();
+		COLORREF textColor = pSkinXP->GetTextColor();
+		if (bPressed)
+		{
+			background = pSkinXP->GetHotSelectedItemColor();
+			textColor = pSkinXP->GetSelectedTextColor();
+		}
+		else if (bHot)
+		{
+			background = pSkinXP->GetHotItemColor();
+		}
+
+		dc.FillSolidRect(rectItem, background);
+		dc.FillSolidRect(rectItem.left, rectItem.bottom - 1, rectItem.Width(), 1, pSkinXP->GetBorderColor());
+		dc.FillSolidRect(rectItem.right - 1, rectItem.top, 1, rectItem.Height(), pSkinXP->GetSeparatorColor());
+
+		TCHAR buf[256];
+		HD_ITEM hditem;
+		::ZeroMemory(&hditem, sizeof(hditem));
+		hditem.mask = HDI_TEXT | HDI_FORMAT;
+		hditem.pszText = buf;
+		hditem.cchTextMax = 255;
+		GetItem(lpDrawItemStruct->itemID, &hditem);
+
+		CRect rectText(rectItem);
+		rectText.DeflateRect(9, 0, 9, 0);
+		UINT uFormat = DT_SINGLELINE | DT_NOPREFIX | DT_VCENTER | DT_END_ELLIPSIS;
+		UINT uArrowFormat = DT_SINGLELINE | DT_VCENTER;
+		if (hditem.fmt & HDF_CENTER)
+		{
+			uFormat |= DT_CENTER;
+			uArrowFormat |= DT_RIGHT;
+		}
+		else if (hditem.fmt & HDF_RIGHT)
+		{
+			uFormat |= DT_RIGHT;
+			uArrowFormat |= DT_LEFT;
+		}
+		else
+		{
+			uFormat |= DT_LEFT;
+			uArrowFormat |= DT_RIGHT;
+		}
+
+		BOOL bDrawArrow = (m_nSortOrder != 0) && (lpDrawItemStruct->itemID == (UINT)m_nSortCol);
+		if (bDrawArrow)
+		{
+			rectText.right -= 14;
+		}
+
+		CFont* pOldFont = NULL;
+		CFont* pHeaderFont = GetFont();
+		if (pHeaderFont != NULL)
+		{
+			pOldFont = dc.SelectObject(pHeaderFont);
+		}
+		int oldBkMode = dc.SetBkMode(TRANSPARENT);
+		COLORREF oldTextColor = dc.SetTextColor(textColor);
+		dc.DrawText(buf, -1, rectText, uFormat);
+
+		if (bDrawArrow)
+		{
+			CFont fontMarlett;
+			fontMarlett.CreatePointFont(120, _T("Marlett"));
+			CFont* pOldArrowFont = dc.SelectObject(&fontMarlett);
+			CRect rectArrow(rectItem);
+			rectArrow.DeflateRect(5, 0, 5, 0);
+			dc.DrawText((m_nSortOrder == 1) ? _T("5") : _T("6"), -1, &rectArrow, uArrowFormat);
+			dc.SelectObject(pOldArrowFont);
+		}
+
+		dc.SetTextColor(oldTextColor);
+		dc.SetBkMode(oldBkMode);
+		if (pOldFont != NULL)
+		{
+			dc.SelectObject(pOldFont);
+		}
+		dc.Detach();
+		return;
+	}
+
 	if (m_UxTheme.IsUxThemeLoaded())
 	{
 		HTHEME hTheme = m_UxTheme.GetWindowTheme(m_hWnd);
@@ -373,6 +507,11 @@ void COXTreeHeader::PreSubclassWindow()
 	// Hook the mouse
 	if (m_hMouseHook == NULL)
 		m_hMouseHook = ::SetWindowsHookEx(WH_MOUSE, MouseProc, 0, AfxGetApp()->m_nThreadID);
+
+	if (GetActiveSkinXP() != NULL)
+	{
+		EnsureOwnerDrawColumns(this);
+	}
 }
 
 void COXTreeHeader::OnDestroy() 

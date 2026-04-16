@@ -1,8 +1,6 @@
 // OXCoolToolBar.cpp : implementation file
 //
 // Version: 9.3
-
-
 #include "stdafx.h"
 #include <stdlib.h>
 
@@ -331,21 +329,6 @@ BOOL COXCoolToolBar::Create(CWnd* pParentWnd, DWORD dwStyle, UINT nID)
 	}
 //#else
 	else
-	{
-		if(!CToolBar::Create(pParentWnd,dwStyle,nID))
-			return FALSE;
-
-#if _MFC_VER>=0x0420
-		// by default set flat style
-		SetFlat();
-#endif //_MFC_VER>=0x0420
-	}
-//#endif //_WIN32_IE>=0x0400
-
-	// register OLE Drag'n'Drop
-	COleDropTarget* pOleDropTarget=GetDropTarget();
-	ASSERT(pOleDropTarget!=NULL);
-	if(!pOleDropTarget->Register(this))
 	{
 		TRACE(_T("COXCoolToolBar::Create: failed to register the control with COleDropTarget. You've probably forgotten to initialize OLE libraries using AfxOleInit function\n"));
 	}
@@ -1336,21 +1319,14 @@ void COXCoolToolBar::OnLButtonDown(UINT nFlags, CPoint point)
 
 	if (IsFloatingEnabled() || (!IsFloatingEnabled() && HitTest(&point) >= 0))
 	{
-		if (AfxGetMainWnd()->SendMessage(WM_QUERYSNAPPING))
+		// Always use the live drag path for toolbar gripper dragging.
+		// The stock MFC dock context still shows the old drag preview problems.
+		if (m_pDockBar != NULL && OnToolHitTest(point, NULL) == -1)
 		{
-			// only start dragging if clicked in "void" space
-			if (m_pDockBar != NULL && OnToolHitTest(point, NULL) == -1)
-			{
-				// Start dragging
-				SaveMouseOffset(point);
-				m_bDragging = TRUE;
-				SetCapture();
-				::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_SIZEALL));
-			}
-			else
-			{
-				CWnd::OnLButtonDown(nFlags, point);
-			}
+			SaveMouseOffset(point);
+			m_bDragging = TRUE;
+			SetCapture();
+			::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_SIZEALL));
 		}
 		else
 			CToolBar::OnLButtonDown(nFlags, point);
@@ -1477,7 +1453,9 @@ void COXCoolToolBar::OnMouseMove(UINT nFlags, CPoint point)
 		ClientToScreen(&point);
 		CRect rectWindow;
 		GetWindowRect(rectWindow);
-		CRect rectDock(point.x, point.y, point.x + rectWindow.Width(), point.y + rectWindow.Height());
+		CPoint ptOrigin = point - m_ptOffset;
+		CRect rectDock(ptOrigin.x, ptOrigin.y,
+			ptOrigin.x + rectWindow.Width(), ptOrigin.y + rectWindow.Height());
 		
 		// Get the appropriate dock bar. If one is not found then float.
 		CFrameWnd* pFrameWnd = DYNAMIC_DOWNCAST(CFrameWnd, ::AfxGetMainWnd());
@@ -1502,12 +1480,12 @@ void COXCoolToolBar::OnMouseMove(UINT nFlags, CPoint point)
 		}
 
 		if (m_pDockContext == NULL)
-			pFrameWnd->FloatControlBar(this, point);
+			pFrameWnd->FloatControlBar(this, ptOrigin);
 		else
 		{
 			COXSizeDockBar* pDockBar = COXSizeDockBar::GetAppropriateDockBar(point, this);
 			if (pDockBar == NULL || nFlags & MK_CONTROL)
-				pFrameWnd->FloatControlBar(this, point - m_ptOffset);			
+				pFrameWnd->FloatControlBar(this, ptOrigin);			
 			else
 				pDockBar->DockControlBar(this, rectDock);
 		}
@@ -4593,8 +4571,7 @@ void COXCoolToolBar::SaveMouseOffset(CPoint point)
 	// Calculate and save the offset
 	CRect rectWindow;
 	GetWindowRect(rectWindow);
-	ScreenToClient(&rectWindow);
-
+	ClientToScreen(&point);
 	m_ptOffset = point - rectWindow.TopLeft();
 }
 

@@ -2,7 +2,7 @@
 //					Class Implementation : COX*Skin
 // ==========================================================================
 // This software along with its related components, documentation and files ("The Libraries")
-// is © 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
+// is ï¿½ 1994-2007 The Code Project (1612916 Ontario Limited) and use of The Libraries is
 // governed by a software license agreement ("Agreement").  Copies of the Agreement are
 // available at The Code Project (www.codeproject.com), as part of the package you downloaded
 // to obtain this file, or directly from our office.  For a copy of the license governing
@@ -2163,7 +2163,9 @@ void COXTabSkinXP::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct, CTabCtrl* pTabCtr
 	}
 
 	// draw the tab's text
-	CFont *pOldFont = dc.SelectObject( &m_tabFont );
+	HFONT hTabFont = (HFONT)::SendMessage(pTabCtrl->GetSafeHwnd(), WM_GETFONT, 0, 0);
+	CFont* pTabFont = (hTabFont != NULL) ? CFont::FromHandle(hTabFont) : &m_tabFont;
+	CFont *pOldFont = dc.SelectObject(pTabFont);
 	dc.DrawText( tempStr, &rcItem, DT_CENTER );
 	dc.SelectObject( pOldFont );
 	rcItem.top -= 3;
@@ -2390,7 +2392,9 @@ void COXTabSkin2003::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct, CTabCtrl* pTabC
 	}
 
 	// draw the tab's text
-	CFont *pOldFont = dc.SelectObject( &m_tabFont );
+	HFONT hTabFont = (HFONT)::SendMessage(pTabCtrl->GetSafeHwnd(), WM_GETFONT, 0, 0);
+	CFont* pTabFont = (hTabFont != NULL) ? CFont::FromHandle(hTabFont) : &m_tabFont;
+	CFont *pOldFont = dc.SelectObject(pTabFont);
 	int iOldMode = dc.SetBkMode(TRANSPARENT);
 	dc.DrawText( tempStr, &rcItem, DT_CENTER );
 	dc.SetBkMode(iOldMode);
